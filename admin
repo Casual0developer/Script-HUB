@@ -1,0 +1,2204 @@
+-- script updated every week V1.2
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local TextChatService = game:GetService("TextChatService")
+local Workspace = game:GetService("Workspace")
+local StarterGui = game:GetService("StarterGui")
+local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+
+local LocalPlayer = Players.LocalPlayer
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Camera = Workspace.CurrentCamera
+local prefix = "!"
+
+local ScreenGui = _G.SmoothNotificationUI
+if not ScreenGui then
+    ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "SmoothNotificationUI"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.Parent = playerGui
+    _G.SmoothNotificationUI = ScreenGui
+end
+
+local NOTIFICATION_SPACING = 10
+local NOTIFICATION_WIDTH   = 340
+local NOTIFICATION_HEIGHT  = 100
+
+_G.SmoothNotifications = _G.SmoothNotifications or {}
+local notifications = _G.SmoothNotifications
+
+local function smoothTween(obj, time, props, style)
+    local tween = TweenService:Create(
+        obj,
+        TweenInfo.new(time, style or Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+        props
+    )
+    tween:Play()
+    return tween
+end
+
+local function updateStack()
+    for i, frame in ipairs(notifications) do
+        local targetY = -120 - ((NOTIFICATION_HEIGHT + NOTIFICATION_SPACING) * (i - 1))
+        smoothTween(frame, 0.4, {Position = UDim2.new(1, -30, 1, targetY)})
+    end
+end
+
+local function createNotification(titleText, subtitleText, duration)
+    duration = duration or 3
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0, NOTIFICATION_WIDTH, 0, NOTIFICATION_HEIGHT)
+    Frame.Position = UDim2.new(1, 400, 1, -120)
+    Frame.AnchorPoint = Vector2.new(1, 1)
+    Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    Frame.BackgroundTransparency = 0.15
+    Frame.BorderSizePixel = 0
+    Frame.Visible = true
+    Frame.ClipsDescendants = true
+    Frame.ZIndex = 10
+    Frame.Parent = ScreenGui
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 14)
+    Corner.Parent = Frame
+
+    local Shadow = Instance.new("ImageLabel")
+    Shadow.Size = UDim2.new(1, 40, 1, 40)
+    Shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    Shadow.BackgroundTransparency = 1
+    Shadow.Image = "rbxassetid://1316045217"
+    Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    Shadow.ImageTransparency = 1
+    Shadow.ZIndex = 9
+    Shadow.ScaleType = Enum.ScaleType.Slice
+    Shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    Shadow.Parent = Frame
+
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, -30, 0.5, -15)
+    Title.Position = UDim2.new(0, 15, 0, 10)
+    Title.BackgroundTransparency = 1
+    Title.Text = titleText or ""
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextScaled = true
+    Title.Font = Enum.Font.GothamBold
+    Title.TextTransparency = 1
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.ZIndex = 11
+    Title.Parent = Frame
+
+    local Subtitle = Instance.new("TextLabel")
+    Subtitle.Size = UDim2.new(1, -30, 0.5, -15)
+    Subtitle.Position = UDim2.new(0, 15, 0.5, 0)
+    Subtitle.BackgroundTransparency = 1
+    Subtitle.Text = subtitleText or ""
+    Subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Subtitle.TextScaled = true
+    Subtitle.Font = Enum.Font.Gotham
+    Subtitle.TextTransparency = 1
+    Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+    Subtitle.ZIndex = 11
+    Subtitle.Parent = Frame
+
+    table.insert(notifications, 1, Frame)
+    updateStack()
+
+    task.spawn(function()
+        smoothTween(Frame, 0.7, {Position = UDim2.new(1, -30, 1, -120)})
+        smoothTween(Title, 0.6, {TextTransparency = 0})
+        smoothTween(Subtitle, 0.6, {TextTransparency = 0.15})
+        smoothTween(Shadow, 0.6, {ImageTransparency = 0.85})
+        task.wait(duration)
+        local slideOut = TweenService:Create(Frame, TweenInfo.new(0.7, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            Position = UDim2.new(1, 400, Frame.Position.Y.Scale, Frame.Position.Y.Offset),
+            BackgroundTransparency = 1
+        })
+        local fadeTitle = TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Sine), {TextTransparency = 1})
+        local fadeSub   = TweenService:Create(Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Sine), {TextTransparency = 1})
+        slideOut:Play() fadeTitle:Play() fadeSub:Play()
+        slideOut.Completed:Wait()
+        for i, v in ipairs(notifications) do
+            if v == Frame then table.remove(notifications, i) break end
+        end
+        Frame:Destroy()
+        updateStack()
+    end)
+end
+
+_G.ShowNotification = function(title, subtitle, duration)
+    createNotification(title, subtitle, duration)
+end
+
+local function notify(msg)
+    pcall(function()
+        if _G.ShowNotification then
+            _G.ShowNotification("Client Admin", tostring(msg), 3)
+        end
+    end)
+    pcall(function()
+        StarterGui:SetCore("ChatMakeSystemMessage", {
+            Text = "[Client Admin] " .. tostring(msg),
+            Color = Color3.fromRGB(255, 230, 128),
+            Font = Enum.Font.SourceSansBold,
+            FontSize = Enum.FontSize.Size24,
+        })
+    end)
+    print("[ClientAdmin] " .. tostring(msg))
+end
+
+local flying       = false
+local noclip       = false
+local infiniteJump = false
+local spinning     = false
+local godMode      = false
+local espEnabled   = false
+local fullbright   = false
+local antiFling    = false
+local antiFlingOwnTeleportGraceUntil = 0
+
+local flySpeed  = 50
+local spinSpeed = 90
+
+-- Keeps the speed selected with !speed after character resets.
+local desiredWalkSpeed = nil
+
+local flyConn        = nil
+local noclipConn     = nil
+local spinConn       = nil
+local godConn        = nil
+local espPlayerConn  = nil
+local fullbrightConn = nil
+local antiFlingConn  = nil
+
+local espObjects     = {}
+local blockedPlayers = {}
+
+local deathPosition  = nil
+local savedLighting  = {}
+
+local FlingActive      = false
+local FlingWorkerRunning = false
+local SelectedTargets  = {}
+local PlayerCheckboxes = {}
+local antiFlingResumeAfterFling = false
+
+-- Forward declarations let the fling GUI coordinate with AntiFling while the
+-- actual protection implementation remains with the other command helpers.
+local startAntiFling
+local stopAntiFling
+
+local function pauseAntiFlingForFling()
+    if not antiFling then return end
+    antiFlingResumeAfterFling = true
+    if stopAntiFling then stopAntiFling(true, true) end
+    notify("AntiFling paused while you are flinging")
+end
+
+local function resumeAntiFlingAfterFling()
+    if not antiFlingResumeAfterFling then return end
+    antiFlingResumeAfterFling = false
+    if startAntiFling then startAntiFling(true) end
+    notify("AntiFling restored after flinging")
+end
+
+local function resumeAntiFlingWhenFlingIsFinished()
+    if not FlingWorkerRunning then
+        resumeAntiFlingAfterFling()
+    end
+end
+
+getgenv().OldPos = nil
+getgenv().FPDH   = workspace.FallenPartsDestroyHeight
+
+local function findPlayer(query)
+    if not query then return nil end
+    local q = string.lower(query)
+    for _, p in pairs(Players:GetPlayers()) do
+        if string.lower(p.Name) == q or string.lower(p.DisplayName) == q then return p end
+    end
+    for _, p in pairs(Players:GetPlayers()) do
+        if string.find(string.lower(p.Name), q, 1, true)
+        or string.find(string.lower(p.DisplayName), q, 1, true) then return p end
+    end
+    return nil
+end
+
+local function SkidFling(TargetPlayer)
+    local Character  = LocalPlayer.Character
+    local Humanoid   = Character and Character:FindFirstChildOfClass("Humanoid")
+    local RootPart   = Humanoid and Humanoid.RootPart
+    local TCharacter = TargetPlayer.Character
+    if not TCharacter then return end
+
+    local THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
+    local TRootPart = THumanoid and THumanoid.RootPart
+    local THead     = TCharacter:FindFirstChild("Head")
+    local Accessory = TCharacter:FindFirstChildOfClass("Accessory")
+    local Handle    = Accessory and Accessory:FindFirstChild("Handle")
+
+    if not (Character and Humanoid and RootPart) then
+        return notify("Your character is not ready")
+    end
+
+    if RootPart.Velocity.Magnitude < 50 then
+        getgenv().OldPos = RootPart.CFrame
+    end
+
+    if THumanoid and THumanoid.Sit then
+        return notify(TargetPlayer.Name .. " is sitting")
+    end
+
+    if THead then workspace.CurrentCamera.CameraSubject = THead
+    elseif Handle then workspace.CurrentCamera.CameraSubject = Handle
+    elseif THumanoid and TRootPart then workspace.CurrentCamera.CameraSubject = THumanoid
+    end
+
+    if not TCharacter:FindFirstChildWhichIsA("BasePart") then return end
+
+    local function FPos(BasePart, Pos, Ang)
+        RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
+        Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
+        RootPart.Velocity    = Vector3.new(9e7, 9e7 * 10, 9e7)
+        RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+    end
+
+    local function SFBasePart(BasePart)
+        local TimeToWait = 2
+        local Time  = tick()
+        local Angle = 0
+        repeat
+            if RootPart and THumanoid then
+                if BasePart.Velocity.Magnitude < 50 then
+                    Angle += 100
+                    FPos(BasePart, CFrame.new(0,  1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) task.wait()
+                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) task.wait()
+                    FPos(BasePart, CFrame.new(0,  1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) task.wait()
+                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) task.wait()
+                    FPos(BasePart, CFrame.new(0,  1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0)) task.wait()
+                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0)) task.wait()
+                else
+                    FPos(BasePart, CFrame.new(0,  1.5,  THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0)) task.wait()
+                    FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))            task.wait()
+                    FPos(BasePart, CFrame.new(0,  1.5,  THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0)) task.wait()
+                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0)) task.wait()
+                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))            task.wait()
+                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0)) task.wait()
+                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))            task.wait()
+                end
+            end
+        until Time + TimeToWait < tick() or not FlingActive
+    end
+
+    workspace.FallenPartsDestroyHeight = 0/0
+
+    local BV = Instance.new("BodyVelocity")
+    BV.Parent   = RootPart
+    BV.Velocity = Vector3.new(0, 0, 0)
+    BV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+
+    if TRootPart then SFBasePart(TRootPart)
+    elseif THead  then SFBasePart(THead)
+    elseif Handle then SFBasePart(Handle)
+    else notify(TargetPlayer.Name .. " has no valid parts") end
+
+    BV:Destroy()
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+    workspace.CurrentCamera.CameraSubject = Humanoid
+
+    if getgenv().OldPos then
+        repeat
+            RootPart.CFrame = getgenv().OldPos * CFrame.new(0, .5, 0)
+            Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, .5, 0))
+            Humanoid:ChangeState("GettingUp")
+            for _, part in pairs(Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.Velocity, part.RotVelocity = Vector3.new(), Vector3.new()
+                end
+            end
+            task.wait()
+        until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
+        workspace.FallenPartsDestroyHeight = getgenv().FPDH
+    end
+end
+
+local function CountSelectedTargets()
+    local count = 0
+    for _ in pairs(SelectedTargets) do count += 1 end
+    return count
+end
+
+local function showFlingGUI()
+    local existing = playerGui:FindFirstChild("KilasikFlingGUI")
+    if existing then existing:Destroy() end
+
+    if FlingActive then
+        FlingActive = false
+        resumeAntiFlingWhenFlingIsFinished()
+    end
+    FlingActive      = false
+    SelectedTargets  = {}
+    PlayerCheckboxes = {}
+
+    local FlingGui = Instance.new("ScreenGui")
+    FlingGui.Name         = "KilasikFlingGUI"
+    FlingGui.ResetOnSpawn = false
+    FlingGui.Parent       = playerGui
+
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size                   = UDim2.new(0, 310, 0, 390)
+    MainFrame.Position               = UDim2.new(0.5, -155, 0.5, -195)
+    MainFrame.BackgroundColor3       = Color3.fromRGB(52, 52, 62)
+    MainFrame.BackgroundTransparency = 0.15
+    MainFrame.BorderSizePixel        = 0
+    MainFrame.Active                 = true
+    MainFrame.Draggable              = true
+    MainFrame.Parent                 = FlingGui
+    Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+
+    local mainStroke = Instance.new("UIStroke", MainFrame)
+    mainStroke.Color     = Color3.fromRGB(85, 85, 105)
+    mainStroke.Thickness = 1.5
+
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Size                   = UDim2.new(1, 0, 0, 42)
+    TitleBar.BackgroundColor3       = Color3.fromRGB(62, 62, 75)
+    TitleBar.BackgroundTransparency = 0.15
+    TitleBar.BorderSizePixel        = 0
+    TitleBar.Parent                 = MainFrame
+    Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 12)
+
+    local tbFix = Instance.new("Frame", TitleBar)
+    tbFix.Size                   = UDim2.new(1, 0, 0.5, 0)
+    tbFix.Position               = UDim2.new(0, 0, 0.5, 0)
+    tbFix.BackgroundColor3       = Color3.fromRGB(62, 62, 75)
+    tbFix.BackgroundTransparency = 0.15
+    tbFix.BorderSizePixel        = 0
+
+    local TitleLabel = Instance.new("TextLabel", TitleBar)
+    TitleLabel.Size                   = UDim2.new(1, -50, 1, 0)
+    TitleLabel.Position               = UDim2.new(0, 12, 0, 0)
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Text                   = "☠  FLING MANAGER"
+    TitleLabel.TextColor3             = Color3.fromRGB(255, 255, 255)
+    TitleLabel.Font                   = Enum.Font.GothamBold
+    TitleLabel.TextSize               = 16
+    TitleLabel.TextXAlignment         = Enum.TextXAlignment.Left
+
+    local CloseBtn = Instance.new("TextButton", TitleBar)
+    CloseBtn.Position               = UDim2.new(1, -36, 0, 6)
+    CloseBtn.Size                   = UDim2.new(0, 30, 0, 30)
+    CloseBtn.BackgroundColor3       = Color3.fromRGB(85, 85, 105)
+    CloseBtn.BackgroundTransparency = 0.3
+    CloseBtn.BorderSizePixel        = 0
+    CloseBtn.Text                   = "✖"
+    CloseBtn.TextColor3             = Color3.fromRGB(255, 255, 255)
+    CloseBtn.Font                   = Enum.Font.GothamBold
+    CloseBtn.TextSize               = 14
+    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 8)
+
+    local StatusLabel = Instance.new("TextLabel", MainFrame)
+    StatusLabel.Position               = UDim2.new(0, 12, 0, 48)
+    StatusLabel.Size                   = UDim2.new(1, -24, 0, 22)
+    StatusLabel.BackgroundTransparency = 1
+    StatusLabel.Text                   = "Select targets below"
+    StatusLabel.TextColor3             = Color3.fromRGB(215, 215, 230)
+    StatusLabel.Font                   = Enum.Font.Gotham
+    StatusLabel.TextSize               = 13
+    StatusLabel.TextXAlignment         = Enum.TextXAlignment.Left
+
+    local ListFrame = Instance.new("Frame", MainFrame)
+    ListFrame.Position               = UDim2.new(0, 10, 0, 74)
+    ListFrame.Size                   = UDim2.new(1, -20, 0, 220)
+    ListFrame.BackgroundColor3       = Color3.fromRGB(42, 42, 52)
+    ListFrame.BackgroundTransparency = 0.15
+    ListFrame.BorderSizePixel        = 0
+    Instance.new("UICorner", ListFrame).CornerRadius = UDim.new(0, 8)
+
+    local ScrollFrame = Instance.new("ScrollingFrame", ListFrame)
+    ScrollFrame.Position               = UDim2.new(0, 4, 0, 4)
+    ScrollFrame.Size                   = UDim2.new(1, -8, 1, -8)
+    ScrollFrame.BackgroundTransparency = 1
+    ScrollFrame.BorderSizePixel        = 0
+    ScrollFrame.ScrollBarThickness     = 5
+    ScrollFrame.ScrollBarImageColor3   = Color3.fromRGB(105, 105, 128)
+    ScrollFrame.CanvasSize             = UDim2.new(0, 0, 0, 0)
+
+    local function UpdateStatus()
+        local count = CountSelectedTargets()
+        if FlingActive then
+            StatusLabel.Text       = "☠ Flinging " .. count .. " target(s)..."
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+        else
+            StatusLabel.Text       = count > 0 and (count .. " target(s) selected") or "Select targets below"
+            StatusLabel.TextColor3 = Color3.fromRGB(215, 215, 230)
+        end
+    end
+
+    local function RefreshPlayerList()
+        for _, c in pairs(ScrollFrame:GetChildren()) do c:Destroy() end
+        PlayerCheckboxes = {}
+
+        local list = Players:GetPlayers()
+        table.sort(list, function(a, b) return a.Name:lower() < b.Name:lower() end)
+
+        local y = 4
+        for _, player in ipairs(list) do
+            if player == LocalPlayer then continue end
+
+            local row = Instance.new("Frame", ScrollFrame)
+            row.Size             = UDim2.new(1, -8, 0, 34)
+            row.Position         = UDim2.new(0, 4, 0, y)
+            row.BackgroundColor3 = Color3.fromRGB(58, 58, 72)
+            row.BorderSizePixel  = 0
+            Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+
+            local Box = Instance.new("Frame", row)
+            Box.Size             = UDim2.new(0, 22, 0, 22)
+            Box.Position         = UDim2.new(0, 6, 0.5, -11)
+            Box.BackgroundColor3 = Color3.fromRGB(75, 75, 92)
+            Box.BorderSizePixel  = 0
+            Instance.new("UICorner", Box).CornerRadius = UDim.new(0, 5)
+
+            local Check = Instance.new("TextLabel", Box)
+            Check.Size                   = UDim2.new(1, 0, 1, 0)
+            Check.BackgroundTransparency = 1
+            Check.Text                   = "✓"
+            Check.TextColor3             = Color3.fromRGB(255, 180, 50)
+            Check.TextSize               = 16
+            Check.Font                   = Enum.Font.GothamBold
+            Check.Visible                = SelectedTargets[player.Name] ~= nil
+
+            local NameLbl = Instance.new("TextLabel", row)
+            NameLbl.Size                   = UDim2.new(1, -40, 1, 0)
+            NameLbl.Position               = UDim2.new(0, 34, 0, 0)
+            NameLbl.BackgroundTransparency = 1
+            NameLbl.Text                   = player.Name
+            NameLbl.TextColor3             = Color3.fromRGB(232, 232, 242)
+            NameLbl.TextSize               = 14
+            NameLbl.Font                   = Enum.Font.Gotham
+            NameLbl.TextXAlignment         = Enum.TextXAlignment.Left
+
+            local ClickBtn = Instance.new("TextButton", row)
+            ClickBtn.Size                   = UDim2.new(1, 0, 1, 0)
+            ClickBtn.BackgroundTransparency = 1
+            ClickBtn.Text                   = ""
+            ClickBtn.ZIndex                 = 3
+
+            ClickBtn.MouseButton1Click:Connect(function()
+                if SelectedTargets[player.Name] then
+                    SelectedTargets[player.Name] = nil
+                    Check.Visible = false
+                    smoothTween(row, 0.1, {BackgroundColor3 = Color3.fromRGB(58, 58, 72)})
+                else
+                    SelectedTargets[player.Name] = player
+                    Check.Visible = true
+                    smoothTween(row, 0.1, {BackgroundColor3 = Color3.fromRGB(65, 65, 90)})
+                end
+                UpdateStatus()
+            end)
+
+            ClickBtn.MouseEnter:Connect(function()
+                if not SelectedTargets[player.Name] then
+                    smoothTween(row, 0.1, {BackgroundColor3 = Color3.fromRGB(68, 68, 82)})
+                end
+            end)
+            ClickBtn.MouseLeave:Connect(function()
+                if not SelectedTargets[player.Name] then
+                    smoothTween(row, 0.1, {BackgroundColor3 = Color3.fromRGB(58, 58, 72)})
+                end
+            end)
+
+            if SelectedTargets[player.Name] then
+                row.BackgroundColor3 = Color3.fromRGB(65, 65, 90)
+            end
+
+            PlayerCheckboxes[player.Name] = {Row = row, Check = Check}
+            y += 38
+        end
+
+        ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, y + 4)
+    end
+
+    local function makeBtn(xScale, xOff, text, bgColor)
+        local btn = Instance.new("TextButton", MainFrame)
+        btn.Position         = UDim2.new(xScale, xOff, 0, 302)
+        btn.Size             = UDim2.new(0.5, -15, 0, 38)
+        btn.BackgroundColor3 = bgColor
+        btn.BorderSizePixel  = 0
+        btn.Text             = text
+        btn.TextColor3       = Color3.fromRGB(255, 255, 255)
+        btn.Font             = Enum.Font.GothamBold
+        btn.TextSize         = 15
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+        return btn
+    end
+
+    local StartBtn = makeBtn(0,   10, "▶  START FLING", Color3.fromRGB(0, 150, 60))
+    local StopBtn  = makeBtn(0.5,  5, "■  STOP FLING",  Color3.fromRGB(72, 72, 90))
+
+    local SelAllBtn = makeBtn(0,   10, "SELECT ALL",   Color3.fromRGB(68, 68, 85))
+    local DeselBtn  = makeBtn(0.5,  5, "DESELECT ALL", Color3.fromRGB(68, 68, 85))
+    SelAllBtn.Position = UDim2.new(0,   10, 0, 348)
+    DeselBtn.Position  = UDim2.new(0.5,  5, 0, 348)
+    SelAllBtn.TextSize = 13
+    DeselBtn.TextSize  = 13
+
+    CloseBtn.MouseButton1Click:Connect(function()
+        FlingActive = false
+        resumeAntiFlingWhenFlingIsFinished()
+        FlingGui:Destroy()
+    end)
+
+    local function StartFling()
+        if FlingActive or FlingWorkerRunning then return end
+        if CountSelectedTargets() == 0 then
+            StatusLabel.Text       = "⚠ No targets selected!"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+            task.delay(1.5, UpdateStatus)
+            return
+        end
+        pauseAntiFlingForFling()
+        FlingActive = true
+        smoothTween(StopBtn, 0.2, {BackgroundColor3 = Color3.fromRGB(160, 50, 50)})
+        UpdateStatus()
+        notify("Flinging " .. CountSelectedTargets() .. " target(s)")
+        FlingWorkerRunning = true
+        task.spawn(function()
+            local ok, err = xpcall(function()
+                while FlingActive do
+                    for name, player in pairs(SelectedTargets) do
+                        if not (player and player.Parent) then
+                            SelectedTargets[name] = nil
+                            local cb = PlayerCheckboxes[name]
+                            if cb then cb.Check.Visible = false end
+                        elseif FlingActive then
+                            SkidFling(player)
+                            task.wait(0.1)
+                        end
+                    end
+                    UpdateStatus()
+                    task.wait(0.5)
+                end
+            end, function(message)
+                return tostring(message)
+            end)
+
+            FlingActive = false
+            FlingWorkerRunning = false
+            resumeAntiFlingAfterFling()
+            if not ok then
+                warn("[ClientAdmin] Fling worker stopped: " .. err)
+                notify("Fling stopped because of an error")
+            end
+        end)
+    end
+
+    local function StopFling()
+        if not FlingActive then return end
+        FlingActive = false
+        resumeAntiFlingWhenFlingIsFinished()
+        smoothTween(StopBtn, 0.2, {BackgroundColor3 = Color3.fromRGB(72, 72, 90)})
+        UpdateStatus()
+        notify("Fling stopped")
+    end
+
+    StartBtn.MouseButton1Click:Connect(StartFling)
+    StopBtn.MouseButton1Click:Connect(StopFling)
+
+    SelAllBtn.MouseButton1Click:Connect(function()
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                SelectedTargets[player.Name] = player
+                local cb = PlayerCheckboxes[player.Name]
+                if cb then
+                    cb.Check.Visible = true
+                    smoothTween(cb.Row, 0.1, {BackgroundColor3 = Color3.fromRGB(65, 65, 90)})
+                end
+            end
+        end
+        UpdateStatus()
+    end)
+
+    DeselBtn.MouseButton1Click:Connect(function()
+        for name in pairs(SelectedTargets) do
+            SelectedTargets[name] = nil
+            local cb = PlayerCheckboxes[name]
+            if cb then
+                cb.Check.Visible = false
+                smoothTween(cb.Row, 0.1, {BackgroundColor3 = Color3.fromRGB(58, 58, 72)})
+            end
+        end
+        UpdateStatus()
+    end)
+
+    Players.PlayerAdded:Connect(function()
+        task.wait(0.5)
+        RefreshPlayerList()
+    end)
+    Players.PlayerRemoving:Connect(function(p)
+        SelectedTargets[p.Name] = nil
+        task.wait(0.1)
+        RefreshPlayerList()
+        UpdateStatus()
+    end)
+
+    RefreshPlayerList()
+    UpdateStatus()
+end
+
+local function startFly()
+    if flying then notify("Already flying") return end
+    local char = LocalPlayer.Character
+    if not char then notify("No character") return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then notify("No HumanoidRootPart") return end
+    if flyConn then flyConn:Disconnect() flyConn = nil end
+    flying = true
+
+    local bv = Instance.new("BodyVelocity")
+    bv.Name     = "FlyBodyVelocity"
+    bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bv.Velocity = Vector3.zero
+    bv.Parent   = hrp
+
+    local ba = Instance.new("BodyAngularVelocity")
+    ba.Name            = "FlyBodyAngularVelocity"
+    ba.MaxTorque       = Vector3.new(1e5, 1e5, 1e5)
+    ba.AngularVelocity = Vector3.zero
+    ba.Parent          = hrp
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then pcall(function() hum.PlatformStand = true end) end
+
+    local currentVelocity = Vector3.zero
+    local ACCELERATION    = 12
+    local DECELERATION    = 10
+
+    flyConn = RunService.RenderStepped:Connect(function(dt)
+        if not flying then return end
+        local rootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local flyBV    = rootPart and rootPart:FindFirstChild("FlyBodyVelocity")
+        if not rootPart or not flyBV then return end
+        local cam   = Workspace.CurrentCamera
+        local move  = Vector3.zero
+        local rightV = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z).Unit
+        if UIS:IsKeyDown(Enum.KeyCode.W)           then move += cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S)           then move -= cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A)           then move -= rightV end
+        if UIS:IsKeyDown(Enum.KeyCode.D)           then move += rightV end
+        if UIS:IsKeyDown(Enum.KeyCode.Space)       then move += Vector3.new(0, 1, 0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0, 1, 0) end
+        local targetVelocity = move.Magnitude > 0 and move.Unit * flySpeed or Vector3.zero
+        local lerpFactor     = move.Magnitude > 0 and math.min(1, ACCELERATION * dt) or math.min(1, DECELERATION * dt)
+        currentVelocity      = currentVelocity:Lerp(targetVelocity, lerpFactor)
+        if currentVelocity.Magnitude < 0.01 then currentVelocity = Vector3.zero end
+        flyBV.Velocity = currentVelocity
+    end)
+
+    notify("Fly enabled | Speed: " .. tostring(flySpeed))
+end
+
+local function stopFly()
+    if not flying then notify("Not flying") return end
+    flying = false
+    if flyConn then flyConn:Disconnect() flyConn = nil end
+    local char = LocalPlayer.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local bv = hrp:FindFirstChild("FlyBodyVelocity")
+            if bv then bv:Destroy() end
+            local ba = hrp:FindFirstChild("FlyBodyAngularVelocity")
+            if ba then ba:Destroy() end
+        end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then pcall(function() hum.PlatformStand = false end) end
+    end
+    notify("Fly disabled")
+end
+
+local function startNoclip()
+    if noclip then notify("Noclip already on") return end
+    if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+    noclip = true
+    noclipConn = RunService.Stepped:Connect(function()
+        if not noclip then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end)
+    notify("Noclip enabled")
+end
+
+local function stopNoclip()
+    if not noclip then notify("Noclip already off") return end
+    noclip = false
+    if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+    local char = LocalPlayer.Character
+    if char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = true end
+        end
+    end
+    notify("Noclip disabled")
+end
+
+local function startSpin(speed)
+    if spinning then notify("Already spinning") return end
+    speed = tonumber(speed) or spinSpeed
+    if spinConn then spinConn:Disconnect() spinConn = nil end
+    spinning = true
+    spinConn = RunService.Heartbeat:Connect(function(dt)
+        if not spinning then return end
+        local char = LocalPlayer.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(speed * dt), 0) end
+    end)
+    notify("Spin enabled at " .. tostring(speed) .. "°/s")
+end
+
+local function stopSpin()
+    if not spinning then notify("Not spinning") return end
+    spinning = false
+    if spinConn then spinConn:Disconnect() spinConn = nil end
+    notify("Spin disabled")
+end
+
+local function startGodMode()
+    if godMode then notify("Godmode already on") return end
+    local char = LocalPlayer.Character
+    if not char then notify("No character") return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then notify("No Humanoid") return end
+    if godConn then godConn:Disconnect() godConn = nil end
+    godMode = true
+    godConn = RunService.Heartbeat:Connect(function()
+        if not godMode then return end
+        local c = LocalPlayer.Character
+        local h = c and c:FindFirstChildOfClass("Humanoid")
+        if h and h.Health < h.MaxHealth then h.Health = h.MaxHealth end
+    end)
+    notify("Godmode enabled")
+end
+
+local function stopGodMode()
+    if not godMode then notify("Godmode already off") return end
+    godMode = false
+    if godConn then godConn:Disconnect() godConn = nil end
+    notify("Godmode disabled")
+end
+
+local function applyFullbright()
+    Lighting.Ambient        = Color3.fromRGB(255, 255, 255)
+    Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+    Lighting.Brightness     = 2
+    Lighting.FogEnd         = 1e9
+    Lighting.GlobalShadows  = false
+    Lighting.ClockTime      = 14
+    for _, effect in ipairs(Lighting:GetChildren()) do
+        if effect:IsA("Atmosphere") or effect:IsA("ColorCorrectionEffect")
+        or effect:IsA("BloomEffect") or effect:IsA("BlurEffect") then
+            pcall(function() effect.Enabled = false end)
+        end
+    end
+end
+
+local function enableFullbright()
+    if fullbright then notify("Fullbright already on") return end
+    savedLighting = {
+        Ambient        = Lighting.Ambient,
+        OutdoorAmbient = Lighting.OutdoorAmbient,
+        Brightness     = Lighting.Brightness,
+        FogEnd         = Lighting.FogEnd,
+        GlobalShadows  = Lighting.GlobalShadows,
+        ClockTime      = Lighting.ClockTime,
+    }
+    fullbright = true
+    applyFullbright()
+    if fullbrightConn then fullbrightConn:Disconnect() fullbrightConn = nil end
+    fullbrightConn = RunService.Heartbeat:Connect(function()
+        if not fullbright then return end
+        applyFullbright()
+    end)
+    notify("Fullbright enabled")
+end
+
+local function disableFullbright()
+    if not fullbright then notify("Fullbright already off") return end
+    fullbright = false
+    if fullbrightConn then fullbrightConn:Disconnect() fullbrightConn = nil end
+    Lighting.Ambient        = savedLighting.Ambient
+    Lighting.OutdoorAmbient = savedLighting.OutdoorAmbient
+    Lighting.Brightness     = savedLighting.Brightness
+    Lighting.FogEnd         = savedLighting.FogEnd
+    Lighting.GlobalShadows  = savedLighting.GlobalShadows
+    Lighting.ClockTime      = savedLighting.ClockTime
+    for _, effect in ipairs(Lighting:GetChildren()) do
+        if effect:IsA("Atmosphere") or effect:IsA("ColorCorrectionEffect")
+        or effect:IsA("BloomEffect") or effect:IsA("BlurEffect") then
+            pcall(function() effect.Enabled = true end)
+        end
+    end
+    notify("Fullbright disabled")
+end
+
+local function createESPForPlayer(p)
+    if p == LocalPlayer then return end
+    if not p.Character then return end
+    if espObjects[p] then
+        if espObjects[p].highlight and espObjects[p].highlight.Parent then espObjects[p].highlight:Destroy() end
+        if espObjects[p].charConn then espObjects[p].charConn:Disconnect() end
+        espObjects[p] = nil
+    end
+    local highlight
+    pcall(function()
+        highlight = Instance.new("Highlight")
+        highlight.Name              = "ESP_Highlight"
+        highlight.FillTransparency  = 1
+        highlight.OutlineTransparency = 0
+        highlight.OutlineColor      = Color3.fromRGB(0, 255, 255)
+        highlight.Parent            = p.Character
+    end)
+    if highlight then
+        local charConn
+        charConn = p.CharacterAdded:Connect(function()
+            task.wait(0.2)
+            if espEnabled then createESPForPlayer(p)
+            else if charConn then charConn:Disconnect() end end
+        end)
+        espObjects[p] = {highlight = highlight, charConn = charConn}
+    end
+end
+
+local function removeESPForPlayer(p)
+    if not p then return end
+    local obj = espObjects[p]
+    if obj then
+        if obj.highlight and obj.highlight.Parent then obj.highlight:Destroy() end
+        if obj.charConn then obj.charConn:Disconnect() end
+        espObjects[p] = nil
+    elseif p.Character then
+        local hl = p.Character:FindFirstChild("ESP_Highlight", true)
+        if hl then hl:Destroy() end
+    end
+end
+
+local function enableESP()
+    if espEnabled then notify("ESP already on") return end
+    espEnabled = true
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then createESPForPlayer(p) end
+    end
+    if espPlayerConn then espPlayerConn:Disconnect() espPlayerConn = nil end
+    espPlayerConn = Players.PlayerAdded:Connect(function(p)
+        if espEnabled then createESPForPlayer(p) end
+    end)
+    notify("ESP enabled")
+end
+
+local function disableESP()
+    if not espEnabled then notify("ESP already off") return end
+    espEnabled = false
+    if espPlayerConn then espPlayerConn:Disconnect() espPlayerConn = nil end
+    for p in pairs(espObjects) do removeESPForPlayer(p) end
+    espObjects = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character then
+            local hl = p.Character:FindFirstChild("ESP_Highlight", true)
+            if hl then hl:Destroy() end
+        end
+    end
+    notify("ESP disabled")
+end
+
+local function thru()
+    local char = LocalPlayer.Character
+    if not char then notify("No character") return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then notify("No HumanoidRootPart") return end
+    local direction = Camera.CFrame.LookVector
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {char}
+    raycastParams.IgnoreWater = true
+    local ray = Workspace:Raycast(hrp.Position, direction * 20, raycastParams)
+    if ray and ray.Instance then
+        if antiFling then antiFlingOwnTeleportGraceUntil = os.clock() + 0.75 end
+        hrp.CFrame = CFrame.new(hrp.Position + direction * (ray.Distance + 3))
+        notify("Teleported through wall")
+    else
+        notify("No wall detected in front")
+    end
+end
+
+local function tpToPlayer(name)
+    local target = findPlayer(name)
+    if target and target.Character and LocalPlayer.Character then
+        local myhrp    = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local theirhrp = target.Character:FindFirstChild("HumanoidRootPart")
+        if myhrp and theirhrp then
+            if antiFling then antiFlingOwnTeleportGraceUntil = os.clock() + 0.75 end
+            myhrp.CFrame = theirhrp.CFrame + Vector3.new(2, 0, 0)
+            notify("Teleported to " .. target.Name)
+            return
+        end
+    end
+    notify("Player not found: " .. tostring(name))
+end
+
+local function hideCharacter(char)
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then part.Transparency = 1 part.CanCollide = false
+        elseif (part:IsA("Accessory") or part:IsA("Hat")) then
+            local h = part:FindFirstChild("Handle")
+            if h then h.Transparency = 1 end
+        elseif part:IsA("ParticleEmitter") or part:IsA("Trail") or part:IsA("Beam") then
+            part.Enabled = false
+        end
+    end
+end
+
+local function restoreCharacter(char)
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then part.Transparency = 0 part.CanCollide = true
+        elseif (part:IsA("Accessory") or part:IsA("Hat")) then
+            local h = part:FindFirstChild("Handle")
+            if h then h.Transparency = 0 end
+        elseif part:IsA("ParticleEmitter") or part:IsA("Trail") or part:IsA("Beam") then
+            part.Enabled = true
+        end
+    end
+end
+
+local function blockPlayer(name)
+    local target = findPlayer(name)
+    if not target then notify("Player not found: " .. tostring(name)) return end
+    if blockedPlayers[target] then notify("Already blocked: " .. target.Name) return end
+    local connections = {}
+    if target.Character then
+        hideCharacter(target.Character)
+        local dc = target.Character.DescendantAdded:Connect(function(desc)
+            task.wait()
+            if desc:IsA("BasePart") then desc.Transparency = 1 desc.CanCollide = false end
+        end)
+        table.insert(connections, dc)
+    end
+    local cc = target.CharacterAdded:Connect(function(char)
+        task.wait(0.1)
+        hideCharacter(char)
+        local dc = char.DescendantAdded:Connect(function(desc)
+            task.wait()
+            if desc:IsA("BasePart") then desc.Transparency = 1 desc.CanCollide = false end
+        end)
+        table.insert(connections, dc)
+    end)
+    table.insert(connections, cc)
+    blockedPlayers[target] = {connections = connections}
+    notify("Blocked: " .. target.Name)
+end
+
+local function unblockPlayer(name)
+    local target = findPlayer(name)
+    if not target or not blockedPlayers[target] then notify("Not blocked: " .. tostring(name)) return end
+    for _, conn in ipairs(blockedPlayers[target].connections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    blockedPlayers[target] = nil
+    if target.Character then restoreCharacter(target.Character) end
+    notify("Unblocked: " .. target.Name)
+end
+
+local function setJumpPower(n)
+    if not n then notify("Invalid jump power") return end
+    local function apply(hum)
+        if not hum then return end
+        pcall(function()
+            hum.UseJumpPower = true
+            hum.JumpPower    = n
+            if hum.JumpHeight ~= nil then hum.JumpHeight = math.max(0, n / 2) end
+        end)
+    end
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then apply(hum) notify("JumpPower set to " .. tostring(n)) return end
+    end
+    local conn
+    conn = LocalPlayer.CharacterAdded:Connect(function(ch)
+        local hum = ch:WaitForChild("Humanoid", 5)
+        if hum then apply(hum) notify("JumpPower set to " .. tostring(n)) end
+        if conn then conn:Disconnect() conn = nil end
+    end)
+end
+
+local function back()
+    if not deathPosition then notify("No death position saved") return end
+    local char = LocalPlayer.Character
+    if not char then notify("No character") return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        if antiFling then antiFlingOwnTeleportGraceUntil = os.clock() + 0.75 end
+        hrp.CFrame = CFrame.new(deathPosition)
+        notify("Teleported to death location")
+    else notify("No HumanoidRootPart") end
+end
+
+local function die()
+    local char = LocalPlayer.Character
+    if not char then notify("No character") return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then hum.Health = 0 notify("You died.")
+    else notify("No Humanoid") end
+end
+
+local function fetchServers()
+    local placeId    = game.PlaceId
+    local allServers = {}
+    local cursor     = ""
+    local maxPages   = 5
+    for page = 1, maxPages do
+        local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+        if cursor and cursor ~= "" then url = url .. "&cursor=" .. cursor end
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(game:HttpGet(url))
+        end)
+        if not success or not result or not result.data then break end
+        for _, server in ipairs(result.data) do table.insert(allServers, server) end
+        if result.nextPageCursor and result.nextPageCursor ~= "" then
+            cursor = result.nextPageCursor
+        else break end
+    end
+    return allServers
+end
+
+local function showServerHopGUI()
+    local existing = playerGui:FindFirstChild("ServerHopUI")
+    if existing then existing:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name         = "ServerHopUI"
+    gui.ResetOnSpawn = false
+    gui.Parent       = playerGui
+
+    local main = Instance.new("Frame")
+    main.Size                 = UDim2.new(0, 480, 0, 560)
+    main.Position             = UDim2.new(0.5, -240, 0.5, -280)
+    main.BackgroundColor3     = Color3.fromRGB(20, 20, 20)
+    main.BackgroundTransparency = 0.05
+    main.Active               = true
+    main.Draggable            = true
+    main.Parent               = gui
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
+
+    local mainStroke = Instance.new("UIStroke", main)
+    mainStroke.Color     = Color3.fromRGB(60, 60, 60)
+    mainStroke.Thickness = 1.5
+
+    local titleBar = Instance.new("Frame", main)
+    titleBar.Size                 = UDim2.new(1, 0, 0, 50)
+    titleBar.BackgroundColor3     = Color3.fromRGB(25, 25, 25)
+    titleBar.BackgroundTransparency = 0.1
+    titleBar.BorderSizePixel      = 0
+    Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 14)
+
+    local titleFix = Instance.new("Frame", titleBar)
+    titleFix.Size                 = UDim2.new(1, 0, 0, 14)
+    titleFix.Position             = UDim2.new(0, 0, 1, -14)
+    titleFix.BackgroundColor3     = Color3.fromRGB(25, 25, 25)
+    titleFix.BackgroundTransparency = 0.1
+    titleFix.BorderSizePixel      = 0
+
+    local titleLabel = Instance.new("TextLabel", titleBar)
+    titleLabel.Size               = UDim2.new(1, -50, 1, 0)
+    titleLabel.Position           = UDim2.new(0, 15, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text               = "Server Browser"
+    titleLabel.Font               = Enum.Font.GothamBold
+    titleLabel.TextSize           = 20
+    titleLabel.TextColor3         = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextXAlignment     = Enum.TextXAlignment.Left
+
+    local closeBtn = Instance.new("TextButton", titleBar)
+    closeBtn.Size             = UDim2.new(0, 36, 0, 36)
+    closeBtn.Position         = UDim2.new(1, -43, 0, 7)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    closeBtn.BackgroundTransparency = 0.3
+    closeBtn.Text             = "x"
+    closeBtn.Font             = Enum.Font.GothamBold
+    closeBtn.TextSize         = 16
+    closeBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
+    closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+    local statusLabel = Instance.new("TextLabel", main)
+    statusLabel.Size              = UDim2.new(1, -20, 0, 24)
+    statusLabel.Position          = UDim2.new(0, 10, 0, 58)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text              = "Loading servers..."
+    statusLabel.Font              = Enum.Font.GothamBold
+    statusLabel.TextSize          = 14
+    statusLabel.TextColor3        = Color3.fromRGB(150, 150, 150)
+    statusLabel.TextXAlignment    = Enum.TextXAlignment.Left
+
+    local scroll = Instance.new("ScrollingFrame", main)
+    scroll.Size                  = UDim2.new(1, -20, 1, -90)
+    scroll.Position              = UDim2.new(0, 10, 0, 86)
+    scroll.BackgroundTransparency = 1
+    scroll.ScrollBarThickness    = 5
+    scroll.ScrollBarImageColor3  = Color3.fromRGB(80, 80, 80)
+    scroll.CanvasSize            = UDim2.new(0, 0, 0, 0)
+
+    local listLayout = Instance.new("UIListLayout", scroll)
+    listLayout.Padding = UDim.new(0, 6)
+
+    local serverCards = {}
+
+    local function createServerCard(server, index)
+        local currentId   = game.JobId
+        local isCurrent   = (server.id == currentId)
+        local playerCount = server.playing or 0
+        local maxPlayers  = server.maxPlayers or 0
+        local isFull      = (playerCount >= maxPlayers)
+        local fillPercent = maxPlayers > 0 and (playerCount / maxPlayers) or 0
+
+        local card = Instance.new("Frame", scroll)
+        card.Size = UDim2.new(1, -6, 0, 56)
+        card.BackgroundColor3 = isCurrent and Color3.fromRGB(35, 45, 35) or Color3.fromRGB(30, 30, 30)
+        card.BackgroundTransparency = 0.15
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 10)
+
+        local cardStroke = Instance.new("UIStroke", card)
+        cardStroke.Color     = isCurrent and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(50, 50, 50)
+        cardStroke.Thickness = isCurrent and 1.5 or 1
+
+        local indexLabel = Instance.new("TextLabel", card)
+        indexLabel.Size               = UDim2.new(0, 30, 1, 0)
+        indexLabel.Position           = UDim2.new(0, 8, 0, 0)
+        indexLabel.BackgroundTransparency = 1
+        indexLabel.Text               = "#" .. tostring(index)
+        indexLabel.Font               = Enum.Font.GothamBold
+        indexLabel.TextSize           = 13
+        indexLabel.TextColor3         = Color3.fromRGB(100, 100, 100)
+
+        local playerLabel = Instance.new("TextLabel", card)
+        playerLabel.Size              = UDim2.new(0, 120, 0, 20)
+        playerLabel.Position          = UDim2.new(0, 44, 0, 8)
+        playerLabel.BackgroundTransparency = 1
+        playerLabel.Text              = tostring(playerCount) .. " / " .. tostring(maxPlayers) .. " players"
+        playerLabel.Font              = Enum.Font.GothamBold
+        playerLabel.TextSize          = 14
+        playerLabel.TextColor3        = Color3.fromRGB(230, 230, 230)
+        playerLabel.TextXAlignment    = Enum.TextXAlignment.Left
+
+        local barBG = Instance.new("Frame", card)
+        barBG.Size            = UDim2.new(0, 140, 0, 6)
+        barBG.Position        = UDim2.new(0, 44, 0, 32)
+        barBG.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        Instance.new("UICorner", barBG).CornerRadius = UDim.new(0, 3)
+
+        local barColor = fillPercent < 0.5 and Color3.fromRGB(0, 200, 100)
+            or fillPercent < 0.8 and Color3.fromRGB(255, 180, 0)
+            or Color3.fromRGB(220, 50, 50)
+
+        local barFill = Instance.new("Frame", barBG)
+        barFill.Size            = UDim2.new(math.min(fillPercent, 1), 0, 1, 0)
+        barFill.BackgroundColor3 = barColor
+        Instance.new("UICorner", barFill).CornerRadius = UDim.new(0, 3)
+
+        local joinBtn = Instance.new("TextButton", card)
+        joinBtn.Size     = UDim2.new(0, 80, 0, 32)
+        joinBtn.Position = UDim2.new(1, -90, 0.5, -16)
+        joinBtn.Font     = Enum.Font.GothamBold
+        joinBtn.TextSize = 14
+        Instance.new("UICorner", joinBtn).CornerRadius = UDim.new(0, 8)
+
+        if isCurrent then
+            joinBtn.Text            = "Current"
+            joinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            joinBtn.TextColor3      = Color3.fromRGB(120, 120, 120)
+            joinBtn.Active          = false
+        elseif isFull then
+            joinBtn.Text            = "Full"
+            joinBtn.BackgroundColor3 = Color3.fromRGB(80, 30, 30)
+            joinBtn.TextColor3      = Color3.fromRGB(180, 80, 80)
+            joinBtn.Active          = false
+        else
+            joinBtn.Text            = "Join"
+            joinBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+            joinBtn.TextColor3      = Color3.fromRGB(255, 255, 255)
+            joinBtn.MouseEnter:Connect(function() smoothTween(joinBtn, 0.2, {BackgroundColor3 = Color3.fromRGB(0, 170, 255)}) end)
+            joinBtn.MouseLeave:Connect(function() smoothTween(joinBtn, 0.2, {BackgroundColor3 = Color3.fromRGB(0, 140, 255)}) end)
+            joinBtn.MouseButton1Click:Connect(function()
+                joinBtn.Text            = "Joining..."
+                joinBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 180)
+                notify("Joining server...")
+                pcall(function()
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+                end)
+            end)
+        end
+
+        return card
+    end
+
+    task.spawn(function()
+        local allServers = fetchServers()
+        if #allServers == 0 then
+            statusLabel.Text      = "Failed to fetch servers."
+            statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+            return
+        end
+        statusLabel.Text      = tostring(#allServers) .. " servers found"
+        statusLabel.TextColor3 = Color3.fromRGB(0, 220, 150)
+        for i, server in ipairs(allServers) do
+            local card = createServerCard(server, i)
+            table.insert(serverCards, card)
+        end
+        task.wait(0.05)
+        scroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+    end)
+end
+
+
+-- ==================== EXTRA LOCAL COMMAND HELPERS ====================
+
+local frozen = false
+local savedFov = 70
+local savedGravity = Workspace.Gravity
+local viewingPlayer = nil
+
+local function getHumanoid()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChildOfClass("Humanoid") or nil
+end
+
+local function getRoot()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart") or nil
+end
+
+local function setSit(value)
+    local hum = getHumanoid()
+    if not hum then return notify("No Humanoid found") end
+    hum.Sit = value
+    notify(value and "Sitting" or "Stopped sitting")
+end
+
+local function setFrozen(value)
+    local root = getRoot()
+    if not root then return notify("No HumanoidRootPart found") end
+    frozen = value
+    root.Anchored = value
+    notify(value and "Character frozen" or "Character unfrozen")
+end
+
+local function setFov(value)
+    value = tonumber(value)
+    if not value then return notify("Usage: " .. prefix .. "fov <1-120>") end
+    value = math.clamp(value, 1, 120)
+    Camera.FieldOfView = value
+    notify("FOV set to " .. tostring(value))
+end
+
+local function resetFov()
+    Camera.FieldOfView = savedFov
+    notify("FOV reset to " .. tostring(savedFov))
+end
+
+local function setGravity(value)
+    value = tonumber(value)
+    if not value then return notify("Usage: " .. prefix .. "gravity <number>") end
+    Workspace.Gravity = value
+    notify("Gravity set to " .. tostring(value))
+end
+
+local function resetGravity()
+    Workspace.Gravity = savedGravity
+    notify("Gravity reset to " .. tostring(savedGravity))
+end
+
+local function viewPlayer(name)
+    local target = findPlayer(name)
+    if not target then return notify("Player not found: " .. tostring(name)) end
+    local char = target.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return notify("Target character is not ready") end
+    viewingPlayer = target
+    Camera.CameraSubject = hum
+    notify("Viewing " .. target.Name)
+end
+
+local function unviewPlayer()
+    viewingPlayer = nil
+    local hum = getHumanoid()
+    if hum then Camera.CameraSubject = hum end
+    notify("Camera returned to your character")
+end
+
+local function showPosition()
+    local root = getRoot()
+    if not root then return notify("No HumanoidRootPart found") end
+    local p = root.Position
+    notify(string.format("Position: %.1f, %.1f, %.1f", p.X, p.Y, p.Z))
+end
+
+local function rejoinServer()
+    notify("Rejoining...")
+    pcall(function()
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+    end)
+end
+
+-- ==================== ANTI-FLING ====================
+-- Watches assemblies around the local character instead of only watching
+-- other players. This also covers loose parts, vehicles, seats and chairs.
+if _G.ClientAdminAntiFlingCleanup then
+    pcall(_G.ClientAdminAntiFlingCleanup)
+    _G.ClientAdminAntiFlingCleanup = nil
+end
+
+local ANTI_FLING_SCAN_RADIUS       = 140
+local ANTI_FLING_DANGER_RADIUS     = 42
+local ANTI_FLING_LINEAR_LIMIT      = 95
+local ANTI_FLING_ANGULAR_LIMIT     = 32
+local ANTI_FLING_TELEPORT_LIMIT    = 145
+local ANTI_FLING_SEAT_LINEAR_LIMIT = 55
+local ANTI_FLING_SEAT_ANGULAR_LIMIT = 12
+local ANTI_FLING_QUARANTINE_TIME   = 4
+local ANTI_FLING_EMERGENCY_SPEED   = 75
+local ANTI_FLING_MAX_SAFE_DROP     = 140
+local ANTI_FLING_VOID_MARGIN       = 90
+
+local antiFlingSamples = setmetatable({}, {__mode = "k"})
+local antiFlingQuarantine = setmetatable({}, {__mode = "k"})
+local antiFlingSafeCFrame = nil
+local antiFlingAccumulator = 0
+local antiFlingLastWarning = 0
+local antiFlingSavedFPDH = nil
+local antiFlingLastRootPosition = nil
+local antiFlingLastRootTime = nil
+local antiFlingCharacter = nil
+local antiFlingRecoveryUntil = 0
+local antiFlingSafeHealth = nil
+local antiFlingCharacterTouches = setmetatable({}, {__mode = "k"})
+
+local function isSeatPart(part)
+    return part and (part:IsA("Seat") or part:IsA("VehicleSeat"))
+end
+
+local function restoreQuarantinedPart(part, data)
+    if not part or not part.Parent then return end
+    pcall(function()
+        part.CanCollide = data.CanCollide
+        part.CanTouch = data.CanTouch
+    end)
+end
+
+local function clearAntiFlingQuarantine()
+    for part, data in pairs(antiFlingQuarantine) do
+        restoreQuarantinedPart(part, data)
+        antiFlingQuarantine[part] = nil
+    end
+end
+
+local function setCharacterTouchShield(character, enabled)
+    if enabled then
+        for _, object in ipairs(character:GetDescendants()) do
+            if object:IsA("BasePart") then
+                if antiFlingCharacterTouches[object] == nil then
+                    antiFlingCharacterTouches[object] = object.CanTouch
+                end
+                pcall(function() object.CanTouch = false end)
+            end
+        end
+        return
+    end
+
+    for part, oldCanTouch in pairs(antiFlingCharacterTouches) do
+        if part and part.Parent then
+            pcall(function() part.CanTouch = oldCanTouch end)
+        end
+        antiFlingCharacterTouches[part] = nil
+    end
+end
+
+local function quarantinePart(part, duration)
+    if not part or not part:IsA("BasePart") then return end
+
+    local data = antiFlingQuarantine[part]
+    if not data then
+        data = {
+            CanCollide = part.CanCollide,
+            CanTouch = part.CanTouch,
+            Expires = 0,
+        }
+        antiFlingQuarantine[part] = data
+    end
+
+    data.Expires = math.max(data.Expires, os.clock() + (duration or ANTI_FLING_QUARANTINE_TIME))
+    pcall(function()
+        part.CanCollide = false
+        part.CanTouch = false
+    end)
+end
+
+local function quarantineAssembly(part)
+    quarantinePart(part)
+
+    local ok, connected = pcall(function()
+        return part:GetConnectedParts(true)
+    end)
+    if not ok then return end
+
+    for index, connectedPart in ipairs(connected) do
+        if index > 96 then break end
+        quarantinePart(connectedPart)
+    end
+end
+
+local function breakLocalSeatWeld(character, seatPart)
+    if seatPart then
+        local seatWeld = seatPart:FindFirstChild("SeatWeld")
+        if seatWeld and seatWeld:IsA("Weld") then
+            pcall(function() seatWeld:Destroy() end)
+        end
+    end
+
+    for _, object in ipairs(character:GetDescendants()) do
+        if object.Name == "SeatWeld" and (object:IsA("Weld") or object:IsA("WeldConstraint")) then
+            pcall(function() object:Destroy() end)
+        end
+    end
+end
+
+local function stopCharacterFling(character, humanoid, root, dangerousPart)
+    antiFlingRecoveryUntil = math.max(antiFlingRecoveryUntil, os.clock() + 0.45)
+    setCharacterTouchShield(character, true)
+    local seatPart = humanoid.SeatPart
+    humanoid.Sit = false
+    humanoid.PlatformStand = false
+    breakLocalSeatWeld(character, seatPart)
+    pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+
+    for _, object in ipairs(character:GetDescendants()) do
+        if object:IsA("BasePart") then
+            pcall(function()
+                object.AssemblyLinearVelocity = Vector3.zero
+                object.AssemblyAngularVelocity = Vector3.zero
+                object.Velocity = Vector3.zero
+                object.RotVelocity = Vector3.zero
+            end)
+        end
+    end
+
+    if dangerousPart then
+        quarantineAssembly(dangerousPart)
+    end
+    if seatPart and seatPart ~= dangerousPart then
+        quarantineAssembly(seatPart)
+    end
+
+    if antiFlingSafeCFrame then
+        pcall(function()
+            root.CFrame = antiFlingSafeCFrame
+        end)
+    end
+end
+
+local function sampleDangerousPart(part, now, rootPosition, seatedOn)
+    local assembly = part.AssemblyRootPart or part
+    if not assembly or not assembly.Parent then return false, nil end
+
+    local distance = (part.Position - rootPosition).Magnitude
+    local linearSpeed = assembly.AssemblyLinearVelocity.Magnitude
+    local angularSpeed = assembly.AssemblyAngularVelocity.Magnitude
+    local seatRelated = isSeatPart(part) or isSeatPart(assembly) or seatedOn == part or seatedOn == assembly
+    local sample = antiFlingSamples[assembly]
+    local estimatedSpeed = 0
+    local displacement = 0
+
+    if sample then
+        local elapsed = math.max(now - sample.Time, 1 / 240)
+        displacement = (assembly.Position - sample.Position).Magnitude
+        estimatedSpeed = displacement / elapsed
+    end
+    antiFlingSamples[assembly] = {Position = assembly.Position, Time = now}
+
+    local linearLimit = seatRelated and ANTI_FLING_SEAT_LINEAR_LIMIT or ANTI_FLING_LINEAR_LIMIT
+    local angularLimit = seatRelated and ANTI_FLING_SEAT_ANGULAR_LIMIT or ANTI_FLING_ANGULAR_LIMIT
+    local teleportLimit = seatRelated and 75 or ANTI_FLING_TELEPORT_LIMIT
+    local teleported = sample and displacement >= (seatRelated and 4 or 7) and estimatedSpeed >= teleportLimit
+    local movingDangerously = linearSpeed >= linearLimit or angularSpeed >= angularLimit or teleported
+
+    -- A newly arrived unanchored object almost touching the character may have
+    -- been CFramed there, which can report zero velocity on its first frame.
+    local suspiciousArrival = not sample
+        and not assembly.Anchored
+        and distance <= (seatRelated and 10 or 5.5)
+        and (seatRelated or assembly.Size.Magnitude >= 3)
+
+    return (movingDangerously or suspiciousArrival) and distance <= ANTI_FLING_DANGER_RADIUS, assembly
+end
+
+local function antiFlingStep(deltaTime)
+    if not antiFling then return end
+
+    local now = os.clock()
+
+    -- Keep Roblox's local fallen-part boundary disabled while protected. The
+    -- emergency position checks below still move the character back, but this
+    -- prevents the boundary from deleting the character first on a huge fling.
+    pcall(function()
+        local destroyHeight = Workspace.FallenPartsDestroyHeight
+        if destroyHeight == destroyHeight then
+            Workspace.FallenPartsDestroyHeight = 0 / 0
+        end
+    end)
+
+    for part, data in pairs(antiFlingQuarantine) do
+        if not part.Parent or now >= data.Expires then
+            restoreQuarantinedPart(part, data)
+            antiFlingQuarantine[part] = nil
+        else
+            pcall(function()
+                part.CanCollide = false
+                part.CanTouch = false
+            end)
+        end
+    end
+
+    local character = LocalPlayer.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not (character and humanoid and root) then return end
+
+    if antiFlingCharacter ~= character then
+        setCharacterTouchShield(character, false)
+        antiFlingCharacter = character
+        antiFlingSafeCFrame = root.CFrame
+        antiFlingLastRootPosition = root.Position
+        antiFlingLastRootTime = now
+        antiFlingSafeHealth = humanoid.Health
+        antiFlingRecoveryUntil = 0
+    end
+
+    if now < antiFlingRecoveryUntil then
+        setCharacterTouchShield(character, true)
+        humanoid.Sit = false
+        humanoid.PlatformStand = false
+        pcall(function()
+            if root.AssemblyLinearVelocity.Magnitude > 55 then
+                root.AssemblyLinearVelocity = Vector3.zero
+            end
+            if root.AssemblyAngularVelocity.Magnitude > 12 then
+                root.AssemblyAngularVelocity = Vector3.zero
+            end
+            if antiFlingSafeHealth and humanoid.Health > 0 and humanoid.Health < antiFlingSafeHealth then
+                humanoid.Health = math.min(humanoid.MaxHealth, antiFlingSafeHealth)
+            end
+        end)
+    elseif next(antiFlingCharacterTouches) ~= nil then
+        setCharacterTouchShield(character, false)
+    end
+
+    local rootSpeed = root.AssemblyLinearVelocity.Magnitude
+    local rootSpin = root.AssemblyAngularVelocity.Magnitude
+    local rootPosition = root.Position
+    local elapsed = antiFlingLastRootTime and math.max(now - antiFlingLastRootTime, 1 / 240) or nil
+    local frameDrop = antiFlingLastRootPosition and (antiFlingLastRootPosition.Y - rootPosition.Y) or 0
+    local frameDisplacement = antiFlingLastRootPosition and (rootPosition - antiFlingLastRootPosition).Magnitude or 0
+    local estimatedDropSpeed = elapsed and frameDrop / elapsed or 0
+    local estimatedMovementSpeed = elapsed and frameDisplacement / elapsed or 0
+    local rootVelocity = root.AssemblyLinearVelocity
+    local horizontalSpeed = Vector3.new(rootVelocity.X, 0, rootVelocity.Z).Magnitude
+    local safeY = antiFlingSafeCFrame and antiFlingSafeCFrame.Position.Y or rootPosition.Y
+    local savedDestroyHeight = antiFlingSavedFPDH
+    local nearVoid = savedDestroyHeight
+        and savedDestroyHeight == savedDestroyHeight
+        and rootPosition.Y <= savedDestroyHeight + ANTI_FLING_VOID_MARGIN
+    local farBelowSafePoint = antiFlingSafeCFrame
+        and rootPosition.Y <= safeY - ANTI_FLING_MAX_SAFE_DROP
+    local suddenDownwardTeleport = frameDrop >= 14 and estimatedDropSpeed >= 140
+    local suddenExternalTeleport = now >= antiFlingOwnTeleportGraceUntil
+        and frameDisplacement >= 6
+        and estimatedMovementSpeed >= 105
+    -- Ordinary falling can eventually become fast, so downward Y velocity by
+    -- itself is not a fling. Horizontal launches, violent upward launches and
+    -- extreme downward launches are handled separately.
+    local extremeVelocity = horizontalSpeed >= ANTI_FLING_EMERGENCY_SPEED
+        or rootVelocity.Y >= 110
+        or rootVelocity.Y <= -220
+        or rootSpin >= 38
+
+    antiFlingLastRootPosition = rootPosition
+    antiFlingLastRootTime = now
+
+    -- This path deliberately runs every rendered physics frame, before the
+    -- heavier nearby-part scan, so a launch toward the void is undone at once.
+    if nearVoid or farBelowSafePoint or suddenDownwardTeleport or suddenExternalTeleport or extremeVelocity then
+        stopCharacterFling(character, humanoid, root, nil)
+        antiFlingLastRootPosition = root.Position
+        antiFlingLastRootTime = now
+        if now - antiFlingLastWarning >= 1.25 then
+            antiFlingLastWarning = now
+            notify((nearVoid or farBelowSafePoint) and "AntiFling rescued you from the void" or "AntiFling stopped a fast launch")
+        end
+        return
+    end
+
+    antiFlingAccumulator += deltaTime
+    if antiFlingAccumulator < 0.025 then return end
+    antiFlingAccumulator = 0
+
+    local healthyMovement = not humanoid.Sit
+        and humanoid.FloorMaterial ~= Enum.Material.Air
+        and rootSpeed < 24
+        and rootSpin < 7
+
+    local overlap = OverlapParams.new()
+    overlap.FilterType = Enum.RaycastFilterType.Exclude
+    overlap.FilterDescendantsInstances = {character}
+    overlap.MaxParts = 512
+
+    local nearbyParts = Workspace:GetPartBoundsInRadius(root.Position, ANTI_FLING_SCAN_RADIUS, overlap)
+    local dangerousPart = nil
+    local dangerousAssemblies = {}
+    local newlyDetectedCloseThreat = false
+    local seatedOn = humanoid.SeatPart
+
+    for _, part in ipairs(nearbyParts) do
+        if part:IsA("BasePart") then
+            local dangerous, assembly = sampleDangerousPart(part, now, root.Position, seatedOn)
+            if dangerous then
+                local threat = assembly or part
+                dangerousPart = dangerousPart or threat
+                local threatDistance = (part.Position - root.Position).Magnitude
+                if not dangerousAssemblies[threat] then
+                    dangerousAssemblies[threat] = true
+                    if antiFlingQuarantine[threat] == nil and threatDistance <= 9 then
+                        newlyDetectedCloseThreat = true
+                    end
+                    quarantineAssembly(threat)
+                end
+            end
+        end
+    end
+
+    if seatedOn and not dangerousPart then
+        local dangerous, assembly = sampleDangerousPart(seatedOn, now, root.Position, seatedOn)
+        if dangerous then dangerousPart = assembly or seatedOn end
+    end
+
+    -- A large unexplained local velocity is treated as a fling even if the
+    -- attacking object moved away before this scan ran.
+    local currentVelocity = root.AssemblyLinearVelocity
+    local currentHorizontalSpeed = Vector3.new(currentVelocity.X, 0, currentVelocity.Z).Magnitude
+    local characterAlreadyFlinging = currentHorizontalSpeed >= ANTI_FLING_EMERGENCY_SPEED
+        or currentVelocity.Y >= 110
+        or currentVelocity.Y <= -220
+        or root.AssemblyAngularVelocity.Magnitude >= 38
+    local suspiciousMotionNearThreat = dangerousPart and (
+        currentHorizontalSpeed >= 45
+        or currentVelocity.Y >= 65
+        or currentVelocity.Y <= -120
+        or root.AssemblyAngularVelocity.Magnitude >= 14
+    )
+    local seatedInThreat = seatedOn and dangerousPart ~= nil
+    local tookDamageNearThreat = dangerousPart
+        and antiFlingSafeHealth
+        and humanoid.Health > 0
+        and humanoid.Health < antiFlingSafeHealth
+    local shouldRecover = characterAlreadyFlinging
+        or suspiciousMotionNearThreat
+        or seatedInThreat
+        or newlyDetectedCloseThreat
+        or tookDamageNearThreat
+
+    if shouldRecover then
+        stopCharacterFling(character, humanoid, root, dangerousPart)
+        if now - antiFlingLastWarning >= 1.5 then
+            antiFlingLastWarning = now
+            notify(dangerousPart and "AntiFling blocked a dangerous moving object" or "AntiFling stopped abnormal character velocity")
+        end
+    elseif healthyMovement and not dangerousPart then
+        -- Only advance the recovery point after the area has passed the threat
+        -- scan, so a teleported chair cannot replace the last safe position.
+        antiFlingSafeCFrame = root.CFrame
+        antiFlingSafeHealth = humanoid.Health
+    end
+end
+
+startAntiFling = function(silent)
+    if FlingActive or FlingWorkerRunning then
+        antiFlingResumeAfterFling = true
+        if not silent then notify("AntiFling will enable when flinging stops") end
+        return
+    end
+    if antiFling then
+        if not silent then notify("AntiFling is already enabled") end
+        return
+    end
+    antiFling = true
+    antiFlingAccumulator = 0
+    antiFlingLastWarning = 0
+    local root = getRoot()
+    antiFlingCharacter = LocalPlayer.Character
+    antiFlingSafeCFrame = root and root.CFrame or nil
+    antiFlingLastRootPosition = root and root.Position or nil
+    antiFlingLastRootTime = os.clock()
+    antiFlingSafeHealth = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        and LocalPlayer.Character:FindFirstChildOfClass("Humanoid").Health or nil
+    antiFlingRecoveryUntil = 0
+    antiFlingSavedFPDH = Workspace.FallenPartsDestroyHeight
+    pcall(function()
+        Workspace.FallenPartsDestroyHeight = 0 / 0
+    end)
+
+    if antiFlingConn then antiFlingConn:Disconnect() end
+    -- PreSimulation runs before the physics step, allowing dangerous parts to
+    -- be made non-collidable before their next contact can launch the player.
+    antiFlingConn = RunService.PreSimulation:Connect(antiFlingStep)
+    if not silent then
+        notify("AntiFling enabled: protecting against fast, spinning and teleporting parts")
+    end
+end
+
+stopAntiFling = function(silent, preserveResume)
+    if not preserveResume then
+        antiFlingResumeAfterFling = false
+    end
+    antiFling = false
+    if antiFlingConn then
+        antiFlingConn:Disconnect()
+        antiFlingConn = nil
+    end
+    clearAntiFlingQuarantine()
+    setCharacterTouchShield(LocalPlayer.Character, false)
+    table.clear(antiFlingSamples)
+    if antiFlingSavedFPDH ~= nil then
+        pcall(function()
+            Workspace.FallenPartsDestroyHeight = antiFlingSavedFPDH
+        end)
+    end
+    antiFlingSavedFPDH = nil
+    antiFlingSafeCFrame = nil
+    antiFlingLastRootPosition = nil
+    antiFlingLastRootTime = nil
+    antiFlingCharacter = nil
+    antiFlingSafeHealth = nil
+    antiFlingRecoveryUntil = 0
+    if not silent then notify("AntiFling disabled") end
+end
+
+_G.ClientAdminAntiFlingCleanup = function()
+    stopAntiFling(true)
+end
+
+local function showCommandsGUI()
+    local existing = playerGui:FindFirstChild("CmdsUI")
+    if existing then existing:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name         = "CmdsUI"
+    gui.ResetOnSpawn = false
+    gui.Parent       = playerGui
+
+    local frame = Instance.new("Frame")
+    frame.Size                   = UDim2.new(0, 380, 0, 520)
+    frame.Position               = UDim2.new(0.5, -190, 0.5, -260)
+    frame.BackgroundColor3       = Color3.fromRGB(25, 25, 25)
+    frame.BackgroundTransparency = 0.15
+    frame.Active                 = true
+    frame.Draggable              = true
+    frame.Parent                 = gui
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+    local title = Instance.new("TextLabel")
+    title.Size                   = UDim2.new(1, 0, 0, 40)
+    title.BackgroundTransparency = 1
+    title.Text                   = "🛠 Client Admin Commands 🛠"
+    title.Font                   = Enum.Font.GothamBold
+    title.TextSize               = 18
+    title.TextColor3             = Color3.fromRGB(255, 255, 255)
+    title.Parent                 = frame
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Text                   = "✖"
+    closeBtn.Size                   = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position               = UDim2.new(1, -35, 0, 5)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Font                   = Enum.Font.GothamBold
+    closeBtn.TextSize               = 16
+    closeBtn.TextColor3             = Color3.fromRGB(255, 255, 255)
+    closeBtn.Parent                 = frame
+    closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size                   = UDim2.new(1, -20, 1, -60)
+    scroll.Position               = UDim2.new(0, 10, 0, 50)
+    scroll.BackgroundTransparency = 1
+    scroll.ScrollBarThickness     = 6
+    scroll.Parent                 = frame
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 6)
+    layout.Parent  = scroll
+
+    local p = prefix
+    local commands = {
+        {p.."fly [speed] / "..p.."unfly / "..p.."togglefly",       "Fly controls"},
+        {p.."noclip / "..p.."unnoclip / "..p.."nc / "..p.."clip", "Noclip controls"},
+        {p.."infinitejump / "..p.."uninfinitejump / "..p.."ij",    "Infinite jump controls"},
+        {p.."spin [speed] / "..p.."unspin",                        "Spin character"},
+        {p.."esp / "..p.."unesp / "..p.."toggleesp",               "ESP controls"},
+        {p.."godmode / "..p.."ungodmode / "..p.."togglegod",       "Godmode controls"},
+        {p.."fullbright / "..p.."unfullbright / "..p.."togglefb",   "Fullbright controls"},
+        {p.."speed <number> / "..p.."ws <number>",                  "Set WalkSpeed"},
+        {p.."jump <number> / "..p.."jp <number>",                   "Set JumpPower"},
+        {p.."tp <player> / "..p.."goto <player>",                   "Teleport to a player"},
+        {p.."thru",                                                  "Teleport through a wall in front"},
+        {p.."sit / "..p.."unsit",                                   "Sit / stand"},
+        {p.."freeze / "..p.."unfreeze",                             "Freeze / unfreeze your character"},
+        {p.."fov <1-120> / "..p.."unfov",                           "Set / reset camera FOV"},
+        {p.."gravity <number> / "..p.."ungravity",                   "Set / reset local gravity"},
+        {p.."view <player> / "..p.."unview",                        "Spectate / stop spectating"},
+        {p.."pos / "..p.."position",                                "Show your coordinates"},
+        {p.."block <player> / "..p.."unblock <player>",             "Block / unblock a player locally"},
+        {p.."antifling / "..p.."unantifling",                       "Block fast, spinning and teleporting parts/seats"},
+        {p.."fling",                                                 "Open Fling Manager GUI"},
+        {p.."serverhop",                                             "Open server browser GUI"},
+        {p.."rejoin",                                                "Rejoin the current server"},
+        {p.."back",                                                  "Teleport to where you last died"},
+        {p.."die / "..p.."reset",                                   "Reset your character"},
+        {p.."cmd / "..p.."cmds / "..p.."help / "..p.."menu",        "Open this command GUI"},
+    }
+
+    for _, cmdInfo in ipairs(commands) do
+        local lbl = Instance.new("TextLabel")
+        lbl.Size                   = UDim2.new(1, -10, 0, 26)
+        lbl.BackgroundTransparency = 1
+        lbl.Font                   = Enum.Font.Gotham
+        lbl.TextSize               = 15
+        lbl.TextColor3             = Color3.fromRGB(200, 200, 200)
+        lbl.TextXAlignment         = Enum.TextXAlignment.Left
+        lbl.Text                   = cmdInfo[1]
+        lbl.Parent                 = scroll
+        lbl.MouseEnter:Connect(function()
+            lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+            lbl.Text       = cmdInfo[1] .. " — " .. cmdInfo[2]
+        end)
+        lbl.MouseLeave:Connect(function()
+            lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+            lbl.Text       = cmdInfo[1]
+        end)
+    end
+
+    task.wait(0.05)
+    scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+end
+
+local function hookDeathTracking(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if not hum then return end
+
+    -- Roblox creates a new Humanoid after respawning, so reapply the
+    -- WalkSpeed previously selected with !speed.
+    if desiredWalkSpeed ~= nil then
+        hum.WalkSpeed = desiredWalkSpeed
+
+        -- Some games initialize character values shortly after spawn.
+        -- Reapply once more after initialization without creating a permanent loop.
+        task.delay(0.5, function()
+            if hum and hum.Parent and desiredWalkSpeed ~= nil then
+                hum.WalkSpeed = desiredWalkSpeed
+            end
+        end)
+    end
+
+    hum.Died:Connect(function()
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            deathPosition = hrp.Position
+            notify("Death position saved. Use !back to return.")
+        end
+    end)
+end
+
+if LocalPlayer.Character then task.spawn(hookDeathTracking, LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(hookDeathTracking)
+
+UIS.JumpRequest:Connect(function()
+    if infiniteJump then
+        local char = LocalPlayer.Character
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end) end
+    end
+end)
+
+local commandDebounce = _G.ClientAdminCommandDebounce
+if type(commandDebounce) ~= "table" then
+    commandDebounce = {text = "", time = 0}
+    _G.ClientAdminCommandDebounce = commandDebounce
+end
+
+local aliases = {
+    cmds = "cmd",
+    help = "cmd",
+    menu = "cmd",
+
+    nc = "noclip",
+    clip = "unnoclip",
+
+    ij = "infinitejump",
+    unij = "uninfinitejump",
+
+    ws = "speed",
+    walkspeed = "speed",
+    jp = "jump",
+    jumppower = "jump",
+
+    goto = "tp",
+    position = "pos",
+    reset = "die",
+
+    fb = "fullbright",
+    unfb = "unfullbright",
+
+    af = "antifling",
+    unaf = "unantifling",
+}
+
+local function joinArgs(args, first)
+    if #args < first then return nil end
+    return table.concat(args, " ", first)
+end
+
+local function toggleNoclip()
+    if noclip then stopNoclip() else startNoclip() end
+end
+
+local function toggleFly()
+    if flying then stopFly() else startFly() end
+end
+
+local function toggleESP()
+    if espEnabled then disableESP() else enableESP() end
+end
+
+local function toggleGod()
+    if godMode then stopGodMode() else startGodMode() end
+end
+
+local function toggleFullbright()
+    if fullbright then disableFullbright() else enableFullbright() end
+end
+
+local function toggleInfiniteJump()
+    infiniteJump = not infiniteJump
+    notify("Infinite Jump " .. (infiniteJump and "enabled" or "disabled"))
+end
+
+local function handleCommand(msg)
+    if type(msg) ~= "string" then return end
+
+    msg = msg:match("^%s*(.-)%s*$") or ""
+    if msg:sub(1, #prefix) ~= prefix then return end
+
+    -- Global duplicate guard. This prevents the same outgoing chat message from
+    -- being handled more than once if a chat API happens to emit it repeatedly.
+    local normalized = msg:lower()
+    local now = os.clock()
+    if commandDebounce.text == normalized and (now - commandDebounce.time) < 0.45 then
+        return
+    end
+    commandDebounce.text = normalized
+    commandDebounce.time = now
+
+    local body = msg:sub(#prefix + 1):match("^%s*(.-)%s*$") or ""
+    local args = {}
+    for w in body:gmatch("%S+") do
+        table.insert(args, w)
+    end
+
+    local cmd = args[1] and args[1]:lower() or ""
+    if cmd == "" then return end
+    cmd = aliases[cmd] or cmd
+
+    if cmd == "fly" then
+        local newSpeed = tonumber(args[2])
+        if newSpeed then
+            flySpeed = math.clamp(newSpeed, 1, 1000)
+            if flying then
+                notify("Fly speed updated to " .. tostring(flySpeed))
+            else
+                startFly()
+            end
+        else
+            startFly()
+        end
+
+    elseif cmd == "unfly" then
+        stopFly()
+    elseif cmd == "togglefly" then
+        toggleFly()
+
+    elseif cmd == "noclip" then
+        startNoclip()
+    elseif cmd == "unnoclip" then
+        stopNoclip()
+    elseif cmd == "togglenoclip" then
+        toggleNoclip()
+
+    elseif cmd == "infinitejump" then
+        if infiniteJump then notify("Infinite Jump already enabled")
+        else infiniteJump = true notify("Infinite Jump enabled") end
+    elseif cmd == "uninfinitejump" then
+        if not infiniteJump then notify("Infinite Jump already disabled")
+        else infiniteJump = false notify("Infinite Jump disabled") end
+    elseif cmd == "toggleij" then
+        toggleInfiniteJump()
+
+    elseif cmd == "spin" then
+        startSpin(tonumber(args[2]) or spinSpeed)
+    elseif cmd == "unspin" then
+        stopSpin()
+
+    elseif cmd == "esp" then
+        enableESP()
+    elseif cmd == "unesp" then
+        disableESP()
+    elseif cmd == "toggleesp" then
+        toggleESP()
+
+    elseif cmd == "godmode" then
+        startGodMode()
+    elseif cmd == "ungodmode" then
+        stopGodMode()
+    elseif cmd == "togglegod" then
+        toggleGod()
+
+    elseif cmd == "fullbright" then
+        enableFullbright()
+    elseif cmd == "unfullbright" then
+        disableFullbright()
+    elseif cmd == "togglefb" then
+        toggleFullbright()
+
+    elseif cmd == "speed" then
+        local n = tonumber(args[2])
+        if n then
+            desiredWalkSpeed = n
+            local hum = getHumanoid()
+            if hum then
+                hum.WalkSpeed = desiredWalkSpeed
+                notify("WalkSpeed set to " .. tostring(desiredWalkSpeed) .. " | persists after reset")
+            else
+                notify("WalkSpeed saved as " .. tostring(desiredWalkSpeed) .. " and will apply on spawn")
+            end
+        else
+            notify("Usage: " .. prefix .. "speed <number>")
+        end
+
+    elseif cmd == "jump" then
+        local n = tonumber(args[2])
+        if n then setJumpPower(n)
+        else notify("Usage: " .. prefix .. "jump <number>") end
+
+    elseif cmd == "tp" then
+        local who = joinArgs(args, 2)
+        if who then tpToPlayer(who)
+        else notify("Usage: " .. prefix .. "tp <player>") end
+
+    elseif cmd == "thru" then
+        thru()
+
+    elseif cmd == "sit" then
+        setSit(true)
+    elseif cmd == "unsit" then
+        setSit(false)
+
+    elseif cmd == "freeze" then
+        setFrozen(true)
+    elseif cmd == "unfreeze" then
+        setFrozen(false)
+
+    elseif cmd == "fov" then
+        setFov(args[2])
+    elseif cmd == "unfov" then
+        resetFov()
+
+    elseif cmd == "gravity" then
+        setGravity(args[2])
+    elseif cmd == "ungravity" then
+        resetGravity()
+
+    elseif cmd == "view" then
+        local who = joinArgs(args, 2)
+        if who then viewPlayer(who)
+        else notify("Usage: " .. prefix .. "view <player>") end
+    elseif cmd == "unview" then
+        unviewPlayer()
+
+    elseif cmd == "pos" then
+        showPosition()
+
+    elseif cmd == "block" then
+        local who = joinArgs(args, 2)
+        if who then blockPlayer(who)
+        else notify("Usage: " .. prefix .. "block <player>") end
+    elseif cmd == "unblock" then
+        local who = joinArgs(args, 2)
+        if who then unblockPlayer(who)
+        else notify("Usage: " .. prefix .. "unblock <player>") end
+
+    elseif cmd == "antifling" then
+        startAntiFling()
+    elseif cmd == "unantifling" then
+        stopAntiFling(false)
+
+    elseif cmd == "fling" then
+        showFlingGUI()
+    elseif cmd == "serverhop" then
+        showServerHopGUI()
+    elseif cmd == "rejoin" then
+        rejoinServer()
+    elseif cmd == "back" then
+        back()
+    elseif cmd == "die" then
+        die()
+
+    elseif cmd == "cmd" then
+        showCommandsGUI()
+
+    else
+        notify("Unknown command: " .. cmd .. " | Type " .. prefix .. "cmd")
+    end
+end
+
+-- Use ONE stored chat connection. The previous version used OnIncomingMessage,
+-- which can process a local outgoing message more than once on some chat paths.
+-- Storing the connection also lets a re-run of this updated script clean up its
+-- previous listener instead of stacking another command handler.
+if _G.ClientAdminCommandConnection then
+    pcall(function()
+        _G.ClientAdminCommandConnection:Disconnect()
+    end)
+    _G.ClientAdminCommandConnection = nil
+end
+
+_G.ClientAdminCommandConnection = LocalPlayer.Chatted:Connect(function(message)
+    handleCommand(message)
+end)
+
+notify("Client Admin V1.0 Loaded. Type " .. prefix .. "cmd for commands.")
