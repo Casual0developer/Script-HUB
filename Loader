@@ -1,0 +1,23 @@
+local PlaceId = game.PlaceId
+
+if PlaceId == 6961824067 then
+    loadstring([[
+        print("Loaded script for Fling things and people")
+       
+    ]])()
+
+elseif PlaceId == 987654321 then
+    loadstring([[
+        print("Loaded script for place 2")
+        -- put your second script here
+    ]])()
+
+elseif PlaceId == 555555555 then
+    loadstring([[
+        print("Loaded script for place 3")
+        -- put your third script here
+    ]])()
+
+else
+    warn("Unsupported PlaceId: " .. PlaceId)
+end
