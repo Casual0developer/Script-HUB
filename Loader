@@ -1,3 +1,3 @@
 loadstring([[
--- put the full script you want to load here
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Casual0developer/Script-HUB/refs/heads/main/admin"))()
 ]])()
